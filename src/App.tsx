@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider } from './context/DataContext';
 import { Navbar } from './components/common/Navbar';
@@ -24,12 +24,14 @@ import { PostJob } from './pages/admin/PostJob';
 import { AssessmentBuilder } from './pages/admin/AssessmentBuilder';
 import { CandidatePipeline } from './pages/admin/CandidatePipeline';
 
-const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+const AppLayout: React.FC = () => (
   <div className="min-h-screen bg-obsidian text-slate-100 antialiased">
     <Navbar />
     <div className="flex">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto p-4 md:p-8">{children}</main>
+      <main className="flex-1 overflow-y-auto p-4 md:p-8">
+        <Outlet />
+      </main>
     </div>
   </div>
 );
@@ -58,109 +60,102 @@ export function App() {
         <DataProvider>
           <Toaster position="bottom-right" richColors theme="dark" />
           <Routes>
-            {/* Entry / Gateway Choice Page */}
+            {/* Gateway Choice Page - Direct Top-level Routes */}
             <Route path="/" element={<PortalSelectPage />} />
             <Route path="/portal" element={<PortalSelectPage />} />
 
             {/* Dedicated Admin Login Route */}
             <Route path="/admin/login" element={<AdminLoginPage />} />
 
-            {/* Main Application Layout Routes */}
-            <Route
-              path="/*"
-              element={
-                <AppLayout>
-                  <Routes>
-                    {/* Student Routes */}
-                    <Route
-                      path="/student/profile"
-                      element={
-                        <StudentProtectedRoute>
-                          <StudentProfile />
-                        </StudentProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/student/skills"
-                      element={
-                        <StudentProtectedRoute>
-                          <SkillSelection />
-                        </StudentProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/student/assessments"
-                      element={
-                        <StudentProtectedRoute>
-                          <TakeAssessment />
-                        </StudentProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/student/diagnostics"
-                      element={
-                        <StudentProtectedRoute>
-                          <SkillDiagnostics />
-                        </StudentProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/student/jobs"
-                      element={
-                        <StudentProtectedRoute>
-                          <JobPortal />
-                        </StudentProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/student/applications"
-                      element={
-                        <StudentProtectedRoute>
-                          <ApplicationsTracker />
-                        </StudentProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/student/assistant"
-                      element={
-                        <StudentProtectedRoute>
-                          <AiAdvisorChat />
-                        </StudentProtectedRoute>
-                      }
-                    />
+            {/* Main Application Layout Routes via standard Outlet */}
+            <Route element={<AppLayout />}>
+              {/* Student Routes */}
+              <Route
+                path="/student/profile"
+                element={
+                  <StudentProtectedRoute>
+                    <StudentProfile />
+                  </StudentProtectedRoute>
+                }
+              />
+              <Route
+                path="/student/skills"
+                element={
+                  <StudentProtectedRoute>
+                    <SkillSelection />
+                  </StudentProtectedRoute>
+                }
+              />
+              <Route
+                path="/student/assessments"
+                element={
+                  <StudentProtectedRoute>
+                    <TakeAssessment />
+                  </StudentProtectedRoute>
+                }
+              />
+              <Route
+                path="/student/diagnostics"
+                element={
+                  <StudentProtectedRoute>
+                    <SkillDiagnostics />
+                  </StudentProtectedRoute>
+                }
+              />
+              <Route
+                path="/student/jobs"
+                element={
+                  <StudentProtectedRoute>
+                    <JobPortal />
+                  </StudentProtectedRoute>
+                }
+              />
+              <Route
+                path="/student/applications"
+                element={
+                  <StudentProtectedRoute>
+                    <ApplicationsTracker />
+                  </StudentProtectedRoute>
+                }
+              />
+              <Route
+                path="/student/assistant"
+                element={
+                  <StudentProtectedRoute>
+                    <AiAdvisorChat />
+                  </StudentProtectedRoute>
+                }
+              />
 
-                    {/* Admin Routes */}
-                    <Route
-                      path="/admin/post-job"
-                      element={
-                        <AdminProtectedRoute>
-                          <PostJob />
-                        </AdminProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/admin/assessments"
-                      element={
-                        <AdminProtectedRoute>
-                          <AssessmentBuilder />
-                        </AdminProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/admin/pipeline"
-                      element={
-                        <AdminProtectedRoute>
-                          <CandidatePipeline />
-                        </AdminProtectedRoute>
-                      }
-                    />
+              {/* Admin Routes */}
+              <Route
+                path="/admin/post-job"
+                element={
+                  <AdminProtectedRoute>
+                    <PostJob />
+                  </AdminProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/assessments"
+                element={
+                  <AdminProtectedRoute>
+                    <AssessmentBuilder />
+                  </AdminProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/pipeline"
+                element={
+                  <AdminProtectedRoute>
+                    <CandidatePipeline />
+                  </AdminProtectedRoute>
+                }
+              />
+            </Route>
 
-                    {/* Default fallback */}
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                  </Routes>
-                </AppLayout>
-              }
-            />
+            {/* Default Catch-All Redirect */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </DataProvider>
       </AuthProvider>
@@ -169,3 +164,4 @@ export function App() {
 }
 
 export default App;
+
