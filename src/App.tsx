@@ -7,6 +7,7 @@ import { Sidebar } from './components/common/Sidebar';
 import { Toaster } from 'sonner';
 
 // Auth Pages
+import { PortalSelectPage } from './pages/auth/PortalSelectPage';
 import { AdminLoginPage } from './pages/auth/AdminLoginPage';
 
 // Student Pages
@@ -33,14 +34,6 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   </div>
 );
 
-const RoleRouter: React.FC = () => {
-  const { role, user } = useAuth();
-  if (role === 'ADMIN' && user?.id === 'yashu-admin-1') {
-    return <Navigate to="/admin/pipeline" replace />;
-  }
-  return <Navigate to="/student/jobs" replace />;
-};
-
 const StudentProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { role } = useAuth();
   if (role === 'ADMIN') {
@@ -65,6 +58,10 @@ export function App() {
         <DataProvider>
           <Toaster position="bottom-right" richColors theme="dark" />
           <Routes>
+            {/* Entry / Gateway Choice Page */}
+            <Route path="/" element={<PortalSelectPage />} />
+            <Route path="/portal" element={<PortalSelectPage />} />
+
             {/* Dedicated Admin Login Route */}
             <Route path="/admin/login" element={<AdminLoginPage />} />
 
@@ -158,9 +155,8 @@ export function App() {
                       }
                     />
 
-                    {/* Catch-all & Default Routing */}
-                    <Route path="/" element={<RoleRouter />} />
-                    <Route path="*" element={<RoleRouter />} />
+                    {/* Default fallback */}
+                    <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </AppLayout>
               }

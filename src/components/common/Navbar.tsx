@@ -53,15 +53,20 @@ export const Navbar: React.FC = () => {
     <>
       <header className="sticky top-0 z-40 flex h-16 w-full items-center justify-between border-b border-borderSubtle bg-obsidian/90 px-4 md:px-6 backdrop-blur-md">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-brandIndigo to-brandPurple text-white shadow-lg shadow-brandIndigo/20">
-            <ShieldCheck className="h-5 w-5" />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-bold tracking-tight text-white">Qualifi</span>
-            <span className="rounded-full border border-brandIndigo/30 bg-brandIndigo/10 px-2 py-0.5 text-[10px] font-semibold text-brandIndigo">
-              VERIFIED PLATFORM
-            </span>
-          </div>
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-3 text-left group cursor-pointer"
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-brandIndigo to-brandPurple text-white shadow-lg shadow-brandIndigo/20 group-hover:scale-105 transition">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-bold tracking-tight text-white group-hover:text-brandIndigo transition">Qualifi</span>
+              <span className="rounded-full border border-brandIndigo/30 bg-brandIndigo/10 px-2 py-0.5 text-[10px] font-semibold text-brandIndigo">
+                VERIFIED PLATFORM
+              </span>
+            </div>
+          </button>
 
           {/* Engine status indicators */}
           <div className="hidden items-center gap-2 border-l border-borderSubtle pl-4 lg:flex">
