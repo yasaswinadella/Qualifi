@@ -266,7 +266,10 @@ ALTER TABLE public.applications ENABLE ROW LEVEL SECURITY;
 
 -- Profiles Policies
 CREATE POLICY "Profiles readable by authenticated users" ON public.profiles FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Profiles readable by anon users" ON public.profiles FOR SELECT TO anon USING (true);
 CREATE POLICY "Users update own profile" ON public.profiles FOR UPDATE TO authenticated USING (auth.uid() = id);
+CREATE POLICY "Users insert own profile" ON public.profiles FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
+CREATE POLICY "Users manage own profile" ON public.profiles FOR ALL TO authenticated USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 
 -- Categories & Skills Policies
 CREATE POLICY "Categories viewable by all" ON public.skill_categories FOR SELECT TO authenticated USING (true);
@@ -317,19 +320,33 @@ CREATE POLICY "Admins view all applications" ON public.applications FOR SELECT T
   EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'ADMIN')
 );
 
--- Auth Trigger
+-- Auth Trigger for Real Google & Email Signups
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, full_name, email, role)
+  INSERT INTO public.profiles (id, full_name, email, role, avatar_url)
   VALUES (
     NEW.id,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', 'Qualifi Student'),
+    COALESCE(
+      NEW.raw_user_meta_data->>'full_name',
+      NEW.raw_user_meta_data->>'name',
+      NEW.raw_user_meta_data->>'user_name',
+      split_part(NEW.email, '@', 1)
+    ),
     NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'role', 'STUDENT')
+    COALESCE(NEW.raw_user_meta_data->>'role', 'STUDENT'),
+    COALESCE(
+      NEW.raw_user_meta_data->>'avatar_url',
+      NEW.raw_user_meta_data->>'picture',
+      ''
+    )
   )
   ON CONFLICT (id) DO UPDATE
-  SET full_name = EXCLUDED.full_name, email = EXCLUDED.email;
+  SET 
+    full_name = EXCLUDED.full_name,
+    email = EXCLUDED.email,
+    avatar_url = CASE WHEN EXCLUDED.avatar_url <> '' THEN EXCLUDED.avatar_url ELSE public.profiles.avatar_url END,
+    updated_at = NOW();
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

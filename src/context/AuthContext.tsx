@@ -60,72 +60,201 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [role, setRole] = useState<Role>('STUDENT');
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Initialize session from Supabase or localStorage
+  // Synchronize authenticated user with real database profile
+  const syncSupabaseUser = async (authUser: any) => {
+    try {
+      // 1. Check if user is the designated platform administrator
+      if (authUser.email === ADMIN_CONFIG.EMAIL) {
+        setUser(ADMIN_PROFILE);
+        setRole('ADMIN');
+        localStorage.setItem('QUALIFI_ACTIVE_AUTH_USER', JSON.stringify(ADMIN_PROFILE));
+        fallbackStore.profiles.set(ADMIN_CONFIG.ID, ADMIN_PROFILE);
+        persistFallbackStore();
+        return;
+      }
+
+      // 2. Query real database profile
+      if (isSupabaseConfigured) {
+        const { data: existingProfile, error: fetchErr } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', authUser.id)
+          .maybeSingle();
+
+        if (existingProfile && !fetchErr) {
+          const profile = existingProfile as Profile;
+          setUser(profile);
+          setRole(profile.role || 'STUDENT');
+          localStorage.setItem('QUALIFI_ACTIVE_AUTH_USER', JSON.stringify(profile));
+          fallbackStore.profiles.set(profile.id, profile);
+          persistFallbackStore();
+          return;
+        }
+      }
+
+      // 3. Profile does not exist yet (brand new real Google or Email user)
+      const meta = authUser.user_metadata || {};
+      const fullName =
+        meta.full_name ||
+        meta.name ||
+        meta.user_name ||
+        authUser.email?.split('@')[0] ||
+        'Verified Student Candidate';
+      const avatarUrl =
+        meta.avatar_url ||
+        meta.picture ||
+        `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(authUser.id)}`;
+      const college = meta.college || 'Stanford / Global University';
+      const degree = meta.degree || 'B.Tech';
+      const branch = meta.branch || 'Computer Science';
+      const cgpa = typeof meta.cgpa === 'number' ? meta.cgpa : 8.85;
+
+      const newStudentProfile: Profile = {
+        id: authUser.id,
+        role: 'STUDENT',
+        full_name: fullName,
+        email: authUser.email || '',
+        avatar_url: avatarUrl,
+        college: college,
+        degree: degree,
+        branch: branch,
+        cgpa: cgpa,
+        company_name: '',
+        parsed_resume: {
+          skills: ['React', 'Python', 'DSA', 'SQL', 'TypeScript', 'Cloud & DevOps'],
+          education: [
+            {
+              institution: college,
+              degree: `${degree} in ${branch}`,
+              year: 2026,
+              cgpa: cgpa,
+            },
+          ],
+          projects: [
+            {
+              title: 'Automated Skill Verification Pipeline',
+              description: 'Standardized assessment engine with Gemini AI automated scoring and proctoring telemetry.',
+              techStack: ['React', 'TypeScript', 'Supabase', 'PostgreSQL'],
+            },
+          ],
+          certifications: ['Verified Early-Career Technical Candidate'],
+          summary: `Candidate profile registered with verified identity: ${authUser.email}.`,
+        },
+      };
+
+      // Save real user directly into Supabase database profiles table
+      if (isSupabaseConfigured) {
+        try {
+          const { error: upsertErr } = await supabase.from('profiles').upsert(newStudentProfile);
+          if (upsertErr) {
+            console.warn('Supabase profile database upsert note:', upsertErr);
+          }
+        } catch (err) {
+          console.warn('Database upsert warning:', err);
+        }
+      }
+
+      setUser(newStudentProfile);
+      setRole('STUDENT');
+      localStorage.setItem('QUALIFI_ACTIVE_AUTH_USER', JSON.stringify(newStudentProfile));
+      fallbackStore.profiles.set(newStudentProfile.id, newStudentProfile);
+      persistFallbackStore();
+      toast.success(`Welcome to Qualifi, ${fullName}!`);
+    } catch (err) {
+      console.error('Error during Supabase user synchronization:', err);
+    }
+  };
+
+  // Initialize session and set up live Supabase auth listener
   useEffect(() => {
+    let isMounted = true;
+
     async function initSession() {
       setIsLoading(true);
 
-      // Check if admin is logged in from localStorage
+      // Check if admin is cached in localStorage
       const savedAuthUser = localStorage.getItem('QUALIFI_ACTIVE_AUTH_USER');
       if (savedAuthUser) {
         try {
           const parsed = JSON.parse(savedAuthUser) as Profile;
           if (parsed.id === ADMIN_CONFIG.ID && parsed.role === 'ADMIN') {
-            setUser(ADMIN_PROFILE);
-            setRole('ADMIN');
-            setIsLoading(false);
+            if (isMounted) {
+              setUser(ADMIN_PROFILE);
+              setRole('ADMIN');
+              setIsLoading(false);
+            }
             return;
           }
           if (parsed && parsed.role === 'STUDENT') {
-            setUser(parsed);
-            setRole('STUDENT');
-            setIsLoading(false);
-            return;
+            if (isMounted) {
+              setUser(parsed);
+              setRole('STUDENT');
+            }
           }
         } catch {
-          // parse error, continue
+          // parse error
         }
       }
 
+      // Check active Supabase session
       if (isSupabaseConfigured) {
         try {
           const {
             data: { session },
           } = await supabase.auth.getSession();
-          if (session?.user) {
-            const { data: profile, error } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .single();
 
-            if (profile && !error) {
-              const loadedProfile = profile as Profile;
-              setUser(loadedProfile);
-              setRole(loadedProfile.role);
-              setIsLoading(false);
-              return;
-            }
+          if (session?.user && isMounted) {
+            await syncSupabaseUser(session.user);
+            setIsLoading(false);
+            return;
           }
         } catch (err) {
-          console.warn('Supabase auth check fallback:', err);
+          console.warn('Supabase getSession fallback:', err);
         }
       }
 
-      // Default to student persona from fallback store
-      const defaultStudent =
-        fallbackStore.profiles.get('mock-student-id') ||
-        Array.from(fallbackStore.profiles.values()).find((p) => p.role === 'STUDENT') ||
-        null;
+      // Fallback to default student persona if no active session
+      if (isMounted && !user) {
+        const defaultStudent =
+          fallbackStore.profiles.get('mock-student-id') ||
+          Array.from(fallbackStore.profiles.values()).find((p) => p.role === 'STUDENT') ||
+          null;
 
-      if (defaultStudent) {
-        setUser(defaultStudent);
-        setRole('STUDENT');
+        if (defaultStudent) {
+          setUser(defaultStudent);
+          setRole('STUDENT');
+        }
       }
-      setIsLoading(false);
+
+      if (isMounted) {
+        setIsLoading(false);
+      }
     }
 
     initSession();
+
+    // Listen to real Supabase auth state changes (OAuth redirects, logins, signouts)
+    let authListener: { subscription?: { unsubscribe: () => void } } | null = null;
+    if (isSupabaseConfigured) {
+      const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (session?.user) {
+          await syncSupabaseUser(session.user);
+        } else if (event === 'SIGNED_OUT') {
+          localStorage.removeItem('QUALIFI_ACTIVE_AUTH_USER');
+          const defaultStudent = fallbackStore.profiles.get('mock-student-id') || null;
+          setUser(defaultStudent);
+          setRole('STUDENT');
+        }
+      });
+      authListener = data;
+    }
+
+    return () => {
+      isMounted = false;
+      if (authListener?.subscription) {
+        authListener.subscription.unsubscribe();
+      }
+    };
   }, []);
 
   const isAdminAuthenticated = Boolean(user?.id === ADMIN_CONFIG.ID && role === 'ADMIN');
@@ -152,22 +281,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         if (error) throw error;
         if (data.user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', data.user.id)
-            .single();
-
-          if (profile) {
-            const loaded = profile as Profile;
-            setUser(loaded);
-            setRole('STUDENT');
-            localStorage.setItem('QUALIFI_ACTIVE_AUTH_USER', JSON.stringify(loaded));
-            return true;
-          }
+          await syncSupabaseUser(data.user);
+          return true;
         }
       } catch (err: any) {
-        console.warn('Supabase student login error, falling back:', err);
+        console.warn('Supabase student login error, checking fallback store:', err);
       }
     }
 
@@ -181,7 +299,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     if (!matched) {
-      // Auto-create local student profile if first time
       matched = {
         id: `student-${Date.now()}`,
         role: 'STUDENT',
@@ -250,9 +367,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               certifications: [],
             },
           };
+
+          // Save to database
+          await supabase.from('profiles').upsert(newProfile);
+
           setUser(newProfile);
           setRole('STUDENT');
           localStorage.setItem('QUALIFI_ACTIVE_AUTH_USER', JSON.stringify(newProfile));
+          fallbackStore.profiles.set(newProfile.id, newProfile);
+          persistFallbackStore();
           return true;
         }
       } catch (err) {
@@ -294,21 +417,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const studentGoogleAuth = async () => {
     if (isSupabaseConfigured) {
-      try {
-        const { error } = await supabase.auth.signInWithOAuth({
-          provider: 'google',
-          options: {
-            redirectTo: window.location.origin + '/student/jobs',
+      toast.info('Connecting to Google OAuth via Supabase...');
+      const redirectUrl = `${window.location.origin}/student/jobs`;
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'select_account',
           },
-        });
-        if (error) throw error;
-        return;
-      } catch (err) {
-        console.warn('Google OAuth error, falling back to simulated Google Persona:', err);
+        },
+      });
+      if (error) {
+        console.error('Supabase Google OAuth error:', error);
+        toast.error(`Google Sign-In Error: ${error.message}`);
+        throw error;
       }
+      if (data?.url) {
+        window.location.assign(data.url);
+        return;
+      }
+      return;
     }
 
-    // Fallback simulated Google authentication
+    // Fallback simulated Google persona when Supabase keys are not set
     const googleStudent: Profile = {
       id: 'google-student-alex',
       role: 'STUDENT',
@@ -338,13 +471,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(googleStudent);
     setRole('STUDENT');
     localStorage.setItem('QUALIFI_ACTIVE_AUTH_USER', JSON.stringify(googleStudent));
+    toast.success('Connected with Google Profile.');
   };
 
   const forgotPassword = async (email: string): Promise<boolean> => {
     if (isSupabaseConfigured) {
       try {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: window.location.origin + '/student/profile',
+          redirectTo: `${window.location.origin}/student/profile`,
         });
         if (error) throw error;
         return true;
@@ -395,17 +529,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     setUser(updated);
     localStorage.setItem('QUALIFI_ACTIVE_AUTH_USER', JSON.stringify(updated));
+    fallbackStore.profiles.set(user.id, updated);
+    persistFallbackStore();
 
     if (isSupabaseConfigured) {
       try {
-        const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
-        if (error) throw error;
+        const { error } = await supabase.from('profiles').upsert(updated);
+        if (error) {
+          console.warn('Supabase profile database sync note:', error);
+        }
       } catch (err) {
         console.warn('Supabase profile update warning:', err);
       }
-    } else {
-      fallbackStore.profiles.set(user.id, updated);
-      persistFallbackStore();
     }
   };
 
@@ -453,3 +588,4 @@ export function useAuth() {
   if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 }
+
