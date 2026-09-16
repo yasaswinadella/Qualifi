@@ -9,6 +9,7 @@ import { Toaster } from 'sonner';
 // Auth Pages
 import { PortalSelectPage } from './pages/auth/PortalSelectPage';
 import { AdminLoginPage } from './pages/auth/AdminLoginPage';
+import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 
 // Student Pages
 import { StudentProfile } from './pages/student/StudentProfile';
@@ -37,15 +38,40 @@ const AppLayout: React.FC = () => (
 );
 
 const StudentProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { role } = useAuth();
+  const { user, role, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center gap-3">
+        <div className="h-8 w-8 border-2 border-brandIndigo border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs text-slate-400">Verifying session...</p>
+      </div>
+    );
+  }
+
   if (role === 'ADMIN') {
     return <Navigate to="/admin/pipeline" replace />;
   }
+
+  if (!user) {
+    return <Navigate to="/" replace />;
+  }
+
   return <>{children}</>;
 };
 
 const AdminProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { role, user } = useAuth();
+  const { role, user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center gap-3">
+        <div className="h-8 w-8 border-2 border-brandIndigo border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs text-slate-400">Verifying administrator credentials...</p>
+      </div>
+    );
+  }
+
   // Strictly require authenticated Admin ID yashu-admin-1
   if (role !== 'ADMIN' || user?.id !== 'yashu-admin-1') {
     return <Navigate to="/admin/login" replace />;
@@ -66,6 +92,9 @@ export function App() {
 
             {/* Dedicated Admin Login Route */}
             <Route path="/admin/login" element={<AdminLoginPage />} />
+
+            {/* Dedicated Password Recovery Route */}
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
 
             {/* Main Application Layout Routes via standard Outlet */}
             <Route element={<AppLayout />}>

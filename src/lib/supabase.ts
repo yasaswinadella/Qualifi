@@ -51,36 +51,6 @@ interface PersistedState {
 
 const DEFAULT_PROFILES: Profile[] = [
   {
-    id: 'mock-student-id',
-    role: 'STUDENT',
-    full_name: 'Alex Vance',
-    email: 'alex.vance@mit.edu',
-    cgpa: 8.85,
-    branch: 'Computer Science',
-    degree: 'B.Tech',
-    college: 'Massachusetts Institute of Technology',
-    parsed_resume: {
-      skills: ['React', 'Python', 'DSA', 'Cloud & DevOps', 'TypeScript', 'Docker', 'PostgreSQL'],
-      education: [
-        { institution: 'MIT', degree: 'B.Tech in Computer Science', year: 2026, cgpa: 8.85 },
-      ],
-      projects: [
-        {
-          title: 'Distributed Routing System',
-          description: 'High-throughput graph routing system using A* and dynamic recalculation in C++ and Python.',
-          techStack: ['C++', 'Python', 'Graph Theory', 'Docker'],
-        },
-        {
-          title: 'Reactive Frontend Dashboard',
-          description: 'Modular dashboard interface with state propagation using WebSockets.',
-          techStack: ['React', 'TypeScript', 'TailwindCSS'],
-        },
-      ],
-      certifications: ['AWS Certified Developer Associate'],
-      summary: 'Senior undergraduate researcher specializing in distributed web systems, async telemetry, and reactive frontends.',
-    },
-  },
-  {
     id: 'yashu-admin-1',
     role: 'ADMIN',
     full_name: 'Yasaswi Nadella (Platform Admin)',
@@ -676,6 +646,22 @@ export async function startSkillAssessmentSession(skillId: string, studentId: st
   fallbackStore.attempts.set(studentId, [newAttempt, ...userAttempts]);
   persistFallbackStore();
 
+  if (isSupabaseConfigured) {
+    try {
+      await supabase.from('skill_assessment_attempts').upsert({
+        id: attemptId,
+        student_id: studentId,
+        skill_id: skillId,
+        question_set: frozenSet,
+        started_at: newAttempt.started_at,
+        status: 'IN_PROGRESS',
+        violations_count: 0,
+      });
+    } catch (err) {
+      console.warn('Supabase start attempt save error:', err);
+    }
+  }
+
   return {
     attempt_id: attemptId,
     duration_seconds: 1800, // 30 mins
@@ -806,18 +792,34 @@ export async function submitSkillAssessmentSession(
   fallbackStore.selectedSkills.set(studentId, updatedSel);
   persistFallbackStore();
 
-  // If Supabase live, push benchmark to DB
+  // If Supabase live, push assessment attempt and benchmark directly to real tables
   if (isSupabaseConfigured) {
     try {
+      await supabase.from('skill_assessment_attempts').upsert({
+        id: attemptId,
+        student_id: studentId,
+        skill_id: skillName,
+        question_set: questionSet,
+        started_at: attempt?.started_at || nowIso,
+        submitted_at: nowIso,
+        mcq_score: r1Score,
+        coding_score: r2Score,
+        total_score: totalScore,
+        answers: answers,
+        ai_feedback: feedback,
+        violations_count: violationsCount,
+        status: 'GRADED',
+      });
+
       await supabase.from('student_skill_benchmarks').upsert({
         student_id: studentId,
-        skill_category: skillName,
+        skill_id: skillName,
         score: totalScore,
         last_attempt_id: attemptId,
         verified_at: nowIso,
       });
     } catch (err) {
-      console.warn('Supabase benchmark sync warning:', err);
+      console.warn('Supabase assessment sync error:', err);
     }
   }
 

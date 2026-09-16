@@ -57,11 +57,8 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
     setErrorMessage(null);
     try {
       await studentGoogleAuth();
-      toast.success('Successfully connected with Google.');
-      onClose();
     } catch (err: any) {
       setErrorMessage(err.message || 'Google authentication failed');
-    } finally {
       setIsLoading(false);
     }
   };
@@ -76,6 +73,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
       onClose();
     } catch (err: any) {
       setErrorMessage(err.message || 'Invalid email or password.');
+      toast.error(err.message || 'Authentication failed.');
     } finally {
       setIsLoading(false);
     }
@@ -86,7 +84,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      await studentRegister({
+      const res = await studentRegister({
         email: regEmail.trim(),
         password: regPassword,
         fullName: regFullName.trim(),
@@ -95,10 +93,17 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
         branch: regBranch.trim(),
         cgpa: parseFloat(regCgpa) || 8.5,
       });
-      toast.success('Student account registered and profile created!');
-      onClose();
+
+      if (res.needsEmailConfirmation) {
+        setSuccessMessage(`Registration successful! A confirmation email has been sent to ${regEmail}. Please verify your email before signing in.`);
+        toast.success('Registration successful! Please check your email inbox.');
+      } else {
+        toast.success('Student account registered and profile created in Supabase!');
+        onClose();
+      }
     } catch (err: any) {
-      setErrorMessage(err.message || 'Registration failed. Please try again.');
+      setErrorMessage(err.message || 'Registration failed. Please check your credentials.');
+      toast.error(err.message || 'Registration failed.');
     } finally {
       setIsLoading(false);
     }
@@ -110,10 +115,11 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
     setErrorMessage(null);
     try {
       await forgotPassword(forgotEmail.trim());
-      setSuccessMessage(`Password recovery link sent to ${forgotEmail}. Please check your inbox.`);
+      setSuccessMessage(`Password recovery instructions sent to ${forgotEmail}. Please check your email inbox.`);
       toast.success('Password reset link transmitted.');
     } catch (err: any) {
       setErrorMessage(err.message || 'Could not process password recovery.');
+      toast.error(err.message || 'Password reset request failed.');
     } finally {
       setIsLoading(false);
     }

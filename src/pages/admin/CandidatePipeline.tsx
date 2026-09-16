@@ -216,9 +216,9 @@ export const CandidatePipeline: React.FC = () => {
           const catItem = skillCatalog.find((c) => c.name.toLowerCase() === bench.skill_category.toLowerCase());
           rows.push({
             studentId,
-            studentName: (student as any)?.full_name || (student as any)?.name || 'Alex Vance',
-            studentCollege: student?.college || 'Massachusetts Institute of Technology',
-            studentCgpa: student?.cgpa || 8.85,
+            studentName: (student as any)?.full_name || (student as any)?.name || 'Verified Candidate',
+            studentCollege: student?.college || 'Institution',
+            studentCgpa: student?.cgpa || 0,
             skillName: bench.skill_category,
             category: catItem?.category || 'Programming & Software Development',
             score: bench.score,

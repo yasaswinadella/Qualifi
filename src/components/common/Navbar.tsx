@@ -119,7 +119,7 @@ export const Navbar: React.FC = () => {
 
           {/* Student Auth Trigger or User Dropdown */}
           <div className="relative border-l border-borderSubtle pl-2 md:pl-3">
-            {role === 'STUDENT' && (!user || user.id === 'mock-student-id') ? (
+            {role === 'STUDENT' && !user ? (
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={openStudentLogin}

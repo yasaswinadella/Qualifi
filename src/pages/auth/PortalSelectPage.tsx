@@ -32,7 +32,12 @@ export const PortalSelectPage: React.FC = () => {
   };
 
   const handleStudentChoice = () => {
-    navigate('/student/jobs');
+    if (user && role === 'STUDENT') {
+      navigate('/student/jobs');
+    } else {
+      setStudentAuthTab('LOGIN');
+      setIsStudentAuthOpen(true);
+    }
   };
 
   const handleStudentLoginModal = () => {

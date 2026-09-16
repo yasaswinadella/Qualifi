@@ -319,36 +319,41 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
     const existing = selectedSkills.find(
-      (s) => s.skill_name.toLowerCase() === item.name.toLowerCase()
+      (s) => s.skill_name.toLowerCase() === item.name.toLowerCase() || s.skill_id === item.id
     );
     if (existing) {
       toast.info(`"${item.name}" is already in your selected roadmap`);
       return true;
     }
 
+    const selId = `sel-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const nowIso = new Date().toISOString();
+
     const newSelected: StudentSelectedSkill = {
-      id: isSupabaseConfigured ? (undefined as unknown as string) : `sel-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: selId,
       student_id: user.id,
       skill_id: item.id,
       skill_name: item.name,
       category: item.category,
-      selected_at: new Date().toISOString(),
+      selected_at: nowIso,
     };
 
     if (isSupabaseConfigured) {
       const { error } = await supabase.from('student_selected_skills').insert({
         student_id: user.id,
         skill_id: item.id,
+        selected_at: nowIso,
       });
       if (error) {
-        toast.error(error.message);
+        console.error('Supabase selectSkill error:', error);
+        toast.error(`Could not add skill: ${error.message}`);
         return false;
       }
-    } else {
-      const current = fallbackStore.selectedSkills.get(user.id) || [];
-      fallbackStore.selectedSkills.set(user.id, [...current, newSelected]);
-      persistFallbackStore();
     }
+
+    const current = fallbackStore.selectedSkills.get(user.id) || [];
+    fallbackStore.selectedSkills.set(user.id, [...current, newSelected]);
+    persistFallbackStore();
 
     await refreshData();
     toast.success(`Added "${item.name}" to your roadmap!`);
@@ -364,17 +369,19 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('skill_id', skillId)
         .eq('student_id', user.id);
       if (error) {
+        console.error('Supabase removeSelectedSkill error:', error);
         toast.error(error.message);
         return false;
       }
-    } else {
-      const current = fallbackStore.selectedSkills.get(user.id) || [];
-      fallbackStore.selectedSkills.set(
-        user.id,
-        current.filter((s) => s.id !== skillId && s.skill_id !== skillId)
-      );
-      persistFallbackStore();
     }
+
+    const current = fallbackStore.selectedSkills.get(user.id) || [];
+    fallbackStore.selectedSkills.set(
+      user.id,
+      current.filter((s) => s.id !== skillId && s.skill_id !== skillId)
+    );
+    persistFallbackStore();
+
     await refreshData();
     toast.info('Skill removed from your roadmap');
     return true;
@@ -432,7 +439,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     hardPassed: boolean
   ): Promise<boolean> => {
     if (!user) {
-      toast.error('Please sign in to track applications');
+      toast.error('Please sign in to apply for jobs and track applications');
       return false;
     }
 
@@ -450,8 +457,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
     }
 
+    const appId = `app-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const nowIso = new Date().toISOString();
+
     const applicationRecord: Application = {
-      id: isSupabaseConfigured ? (undefined as unknown as string) : `app-${Date.now()}`,
+      id: appId,
       job_id: job.id,
       student_id: user.id,
       status: 'APPLIED_EXTERNALLY',
@@ -459,23 +469,38 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       hard_criteria_passed: hardPassed,
       company_application_url: externalUrl,
       notes: `Applied on official ${job.company} portal.`,
-      last_updated_by_student: new Date().toISOString(),
-      applied_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      last_updated_by_student: nowIso,
+      applied_at: nowIso,
+      updated_at: nowIso,
       job,
       student: user,
     };
 
     if (isSupabaseConfigured) {
-      const { error } = await supabase.from('applications').insert(applicationRecord);
+      // Pass pure database columns to avoid unrecognized column errors
+      const { error } = await supabase.from('applications').insert({
+        id: appId,
+        job_id: job.id,
+        student_id: user.id,
+        status: 'APPLIED_EXTERNALLY',
+        skill_match_score: matchScore,
+        hard_criteria_passed: hardPassed,
+        company_application_url: externalUrl,
+        notes: `Applied on official ${job.company} portal.`,
+        last_updated_by_student: nowIso,
+        applied_at: nowIso,
+        updated_at: nowIso,
+      });
+
       if (error) {
-        toast.error(error.message);
+        console.error('Supabase application insert error:', error);
+        toast.error(`Could not save application: ${error.message}`);
         return false;
       }
-    } else {
-      fallbackStore.applications.set(applicationRecord.id, applicationRecord);
-      persistFallbackStore();
     }
+
+    fallbackStore.applications.set(appId, applicationRecord);
+    persistFallbackStore();
 
     await refreshData();
     toast.success(
@@ -491,24 +516,38 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     link?: string,
     notes?: string
   ) => {
-    const payload: Partial<Application> = {
+    if (!user) return;
+
+    const nowIso = new Date().toISOString();
+    const payload: any = {
       status,
-      updated_at: new Date().toISOString(),
-      last_updated_by_student: new Date().toISOString(),
+      updated_at: nowIso,
+      last_updated_by_student: nowIso,
       ...(interviewTime !== undefined && { interview_time: interviewTime }),
       ...(link !== undefined && { interview_link: link }),
       ...(notes !== undefined && { notes }),
     };
 
     if (isSupabaseConfigured) {
-      await supabase.from('applications').update(payload).eq('id', appId);
-    } else {
-      const existing = fallbackStore.applications.get(appId);
-      if (existing) {
-        fallbackStore.applications.set(appId, { ...existing, ...payload });
-        persistFallbackStore();
+      const { error } = await supabase
+        .from('applications')
+        .update(payload)
+        .eq('id', appId)
+        .eq('student_id', user.id);
+
+      if (error) {
+        console.error('Supabase update application status error:', error);
+        toast.error(`Update failed: ${error.message}`);
+        return;
       }
     }
+
+    const existing = fallbackStore.applications.get(appId);
+    if (existing) {
+      fallbackStore.applications.set(appId, { ...existing, ...payload });
+      persistFallbackStore();
+    }
+
     await refreshData();
     toast.success(`Application updated to ${status.replace(/_/g, ' ')}`);
   };
