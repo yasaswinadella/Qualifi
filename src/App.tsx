@@ -100,6 +100,14 @@ export function App() {
             <Route element={<AppLayout />}>
               {/* Student Routes */}
               <Route
+                path="/student"
+                element={
+                  <StudentProtectedRoute>
+                    <Navigate to="/student/jobs" replace />
+                  </StudentProtectedRoute>
+                }
+              />
+              <Route
                 path="/student/profile"
                 element={
                   <StudentProtectedRoute>

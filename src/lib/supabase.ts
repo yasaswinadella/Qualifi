@@ -21,17 +21,15 @@ import { gradeRound2Answers } from './aiServices';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-export const isSupabaseConfigured = Boolean(
-  supabaseUrl &&
-  supabaseAnonKey &&
-  !supabaseUrl.includes('your-supabase-id') &&
-  !supabaseUrl.includes('placeholder')
-);
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error(
+    'CRITICAL CONFIGURATION ERROR: Supabase environment variables (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY) are missing. Please configure them in your environment / .env file.'
+  );
+}
 
-export const supabase = createClient(
-  isSupabaseConfigured ? supabaseUrl : 'https://placeholder.supabase.co',
-  isSupabaseConfigured ? supabaseAnonKey : 'placeholder-key'
-);
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const LS_KEY = 'QUALIFI_SKILL_VERIFICATION_V3';
 

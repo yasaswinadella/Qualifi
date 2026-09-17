@@ -329,16 +329,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const studentGoogleAuth = async () => {
+    if (!isSupabaseConfigured) {
+      const configError = 'Configuration Error: VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is missing. Please configure your Supabase environment variables.';
+      console.error(configError);
+      toast.error(configError);
+      throw new Error(configError);
+    }
+
     toast.info('Connecting to Google OAuth via Supabase...');
-    const redirectUrl = `${window.location.origin}/student/jobs`;
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: redirectUrl,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'select_account',
-        },
+        redirectTo: `${window.location.origin}/student`,
       },
     });
 
